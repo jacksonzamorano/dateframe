@@ -1,8 +1,11 @@
+#[macro_use]
 mod data;
 mod datefn;
 use std::{fs, io::ErrorKind, path::PathBuf, thread, time::Duration};
 
-use chrono::{Days, Local, NaiveDateTime};
+use chrono::{
+    format::ParseErrorKind, Days, Local, NaiveDate, NaiveDateTime, NaiveTime, ParseError,
+};
 use data::{Config, ConfigError};
 use datefn::WithinRange;
 
@@ -12,8 +15,8 @@ fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     if args.contains(&String::from("--gen-test")) {
         create_test_folders("test/", true);
-        create_test_folders("test/deep/", false);
-        create_test_folders("test/deep/verydeep/", false);
+        // create_test_folders("test/deep/", false);
+        // create_test_folders("test/deep/verydeep/", false);
         return;
     }
     if args.len() == 1 {
@@ -21,9 +24,11 @@ fn main() {
         return;
     }
 
+    let once = args.contains(&String::from("--once"));
+
     let p = args.last().unwrap().to_string();
     _ = thread::spawn(move || loop {
-        if !execute(&p, true) {
+        if !execute(&p, !once) {
             break;
         }
     })
@@ -49,8 +54,10 @@ fn execute(path: &String, schedule: bool) -> bool {
     }
 
     if schedule {
-        println!("Cleaned at: {}", Local::now());
+        println_info!(config, "Cleaned at: {}", Local::now());
         thread::sleep(Duration::from_secs(config.refresh));
+    } else {
+        return false;
     }
     return true;
 }
@@ -74,34 +81,61 @@ fn clean_dir(path: &PathBuf, config: &Config) -> Vec<PathBuf> {
     let mut options = open_dir(path).expect("Cannot open dir");
     options.sort();
 
-    for o in options {
+    for o in options.into_iter() {
         let mut target_path = PathBuf::from(path);
         target_path.push(&o);
+        println!("\t{}", target_path.display());
+
+        let file_name = config.format_name(&o);
+        println_debug!(config, "\t\tUsing name {} for {}", file_name, o);
+
         if let Ok(md) = fs::metadata(&target_path) {
-            if md.is_file() {
-                continue;
-            }
-            match NaiveDateTime::parse_from_str(&o, &config.format) {
-                Ok(date) => {
+            match attempt_path_parse(config, &file_name.trim()) {
+                Some(date) => {
+                    println_debug!(config, "\t\tParsed {} as {}", o, date);
                     if !date.is_within(config) {
                         match fs::remove_dir_all(&target_path) {
-                            Ok(_) => println!("\t{} removed", &target_path.to_str().unwrap()),
-                            Err(x) => match x.kind() {
-                                ErrorKind::PermissionDenied => println!("\tCouldn't remove folder, permission denied"),
-                                _ => println!("\tError with folder, {}", x)
+                            Ok(_) => {
+                                println_info!(config, "\t\t! {} removed", &o)
                             }
+                            Err(x) => match x.kind() {
+                                ErrorKind::PermissionDenied => println_error!(
+                                    config,
+                                    "\t\tCouldn't remove folder, permission denied"
+                                ),
+                                _ => println_error!(config, "\t\tError with folder, {}", x),
+                            },
                         }
                     }
                 }
-                Err(_) => {
-                    if config.deep {
+                None => {
+                    if config.deep && !md.is_file() {
                         children.push(target_path);
                     }
+                    println_info!(config, "\t\t{} did not match date format, skipping.", o);
                 }
             }
         }
     }
     children
+}
+
+fn attempt_path_parse(config: &Config, path: &str) -> Option<NaiveDateTime> {
+    for f in &config.format {
+        match NaiveDateTime::parse_from_str(path, &f) {
+            Ok(date) => return Some(date),
+            Err(x) => match x.kind() {
+                ParseErrorKind::NotEnough => match NaiveDate::parse_from_str(path, &f) {
+                    Ok(date) => {
+                        return Some(config.date_only_behavior.add_to_date(date))
+                    }
+                    Err(_) => {}
+                },
+                _ => {}
+            },
+        }
+    }
+    return None;
 }
 
 fn open_dir(path: &PathBuf) -> Option<Vec<String>> {
@@ -113,9 +147,15 @@ fn open_dir(path: &PathBuf) -> Option<Vec<String>> {
 }
 
 const TEST_CONF: &str = "
-format=%Y-%m-%d %H-%M-%S
+format=%Y-%m-%dT%H-%M-%S
+format=%Y-%m-%d
 retention=10d
 refresh=20
+log=debug
+remove=Test
+split_string= 
+split_index=0
+date_only_behavior=h11
 ";
 
 fn create_test_folders(root_dir: &str, write_config: bool) {
@@ -126,10 +166,21 @@ fn create_test_folders(root_dir: &str, write_config: bool) {
     }
     let today = Local::now();
     let date_past_to_generate = 60;
-    let format = "%Y-%m-%d %H-%M-%S";
+    let format_one = "%Y-%m-%dT%H-%M-%S";
+    let format_two = "%Y-%m-%d";
     for n in (0..date_past_to_generate).rev() {
         let prev = today.checked_sub_days(Days::new(n)).unwrap();
-        let formatted_value = prev.format(format).to_string();
+        let formatted_value = prev.format(format_one).to_string();
+        let mut write_path = PathBuf::from(root_dir);
+        write_path.push(&formatted_value);
+        match fs::create_dir_all(write_path) {
+            Ok(_) => println!("{} created!", formatted_value),
+            Err(_) => println!("Could not create {}!", formatted_value),
+        };
+    }
+    for n in (0..date_past_to_generate).rev() {
+        let prev = today.checked_sub_days(Days::new(n)).unwrap();
+        let formatted_value = prev.format(format_two).to_string();
         let mut write_path = PathBuf::from(root_dir);
         write_path.push(&formatted_value);
         match fs::create_dir_all(write_path) {
