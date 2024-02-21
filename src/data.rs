@@ -98,10 +98,15 @@ impl Config {
 
     pub fn from_file(path: &str) -> Result<Config, ConfigError> {
         let mut config = Config::new();
-        let contents = fs::read(path)
-            .ok()
-            .and_then(|contents_bytes| String::from_utf8(contents_bytes).ok())
-            .ok_or(ConfigError::CannotOpenFile)?;
+        let contents_bytes = fs::read(path)
+            .map_err(|error| {
+                println!("Error with opening config file: {}", error);
+                ConfigError::CannotOpenFile
+            })?;
+            
+        let contents = String::from_utf8(contents_bytes)
+            .map_err(|_| ConfigError::CannotOpenFile)?;
+
         for l in contents.lines() {
             if let Some((key, value)) = Config::line_k_v(l) {
                 config.patch(&key, value)?;
