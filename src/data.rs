@@ -118,7 +118,7 @@ impl Config {
 
     pub fn format_name(&self, name: &str) -> String {
     	let mut formatted = name.to_string();
-        if self.remove.len() > 0 {
+        if !self.remove.is_empty() {
             for r in &self.remove {
                 formatted = name.replace(r, "");
             }
@@ -130,12 +130,12 @@ impl Config {
                 if let Some(contents) = splits.get(*idx) {
                     split_contents.push(contents.to_string());
                 } else {
-                    println_error!(self, "\t\tFormat error: No index {}", idx);
+                    println_info!(self, "\t\tIgnored index {} because no such index.", idx);
                 }
             }
             formatted = split_contents.join(&self.split_join);
         }
-        return formatted;
+        formatted
 
     }
 }
@@ -187,8 +187,8 @@ pub enum DateOnlyBehavior {
 }
 impl DateOnlyBehavior {
 	pub fn from_string(s: &str) -> Result<DateOnlyBehavior, DateOnlyBehaviorError> {
-		if s.starts_with("h") {
-			return Ok(DateOnlyBehavior::Hour(s[1..].parse().map_err(|_| DateOnlyBehaviorError::InvalidHour)?));
+		if let Some(hour_string) = s.strip_prefix('h') {
+			return Ok(DateOnlyBehavior::Hour(hour_string.parse().map_err(|_| DateOnlyBehaviorError::InvalidHour)?));
 		}
 		Ok(match s {
 		    "start" => DateOnlyBehavior::Start,

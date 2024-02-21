@@ -4,7 +4,7 @@ mod datefn;
 use std::{fs, io::ErrorKind, path::PathBuf, thread, time::Duration};
 
 use chrono::{
-    format::ParseErrorKind, Days, Local, NaiveDate, NaiveDateTime, NaiveTime, ParseError,
+    format::ParseErrorKind, Days, Local, NaiveDate, NaiveDateTime,
 };
 use data::{Config, ConfigError};
 use datefn::WithinRange;
@@ -59,7 +59,7 @@ fn execute(path: &String, schedule: bool) -> bool {
     } else {
         return false;
     }
-    return true;
+    true
 }
 
 fn get_config(path: &PathBuf) -> Result<Config, ConfigError> {
@@ -90,7 +90,7 @@ fn clean_dir(path: &PathBuf, config: &Config) -> Vec<PathBuf> {
         println_debug!(config, "\t\tUsing name {} for {}", file_name, o);
 
         if let Ok(md) = fs::metadata(&target_path) {
-            match attempt_path_parse(config, &file_name.trim()) {
+            match attempt_path_parse(config, file_name.trim()) {
                 Some(date) => {
                     println_debug!(config, "\t\tParsed {} as {}", o, date);
                     if !date.is_within(config) {
@@ -122,20 +122,18 @@ fn clean_dir(path: &PathBuf, config: &Config) -> Vec<PathBuf> {
 
 fn attempt_path_parse(config: &Config, path: &str) -> Option<NaiveDateTime> {
     for f in &config.format {
-        match NaiveDateTime::parse_from_str(path, &f) {
+        match NaiveDateTime::parse_from_str(path, f) {
             Ok(date) => return Some(date),
-            Err(x) => match x.kind() {
-                ParseErrorKind::NotEnough => match NaiveDate::parse_from_str(path, &f) {
-                    Ok(date) => {
+            Err(x) => {
+                if x.kind() == ParseErrorKind::NotEnough {
+                    if let Ok(date) = NaiveDate::parse_from_str(path, f) {
                         return Some(config.date_only_behavior.add_to_date(date))
                     }
-                    Err(_) => {}
-                },
-                _ => {}
+                }
             },
         }
     }
-    return None;
+    None
 }
 
 fn open_dir(path: &PathBuf) -> Option<Vec<String>> {
