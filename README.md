@@ -10,7 +10,7 @@ Dateframe is meant to keep a running collection of folders. The reason I created
 ### From Docker (recommended):
 1. Create a `dateframe.conf` in the root of the folder you want to maintain (see documentation below).
 2. Run the following Docker command, replacing the example path with your path:
-`docker run -v /your/path/here:/var/data -d --name dateframe ghcr.io/jacksonzamorano/dateframe:master`
+`docker run -v /your/path/here:/var/data -d --name dateframe ghcr.io/jacksonzamorano/dateframe:latest`
 
 ### From the commmand line:
 1. Create a `dateframe.conf` in the root of the folder you want to maintain (see documentation below).
