@@ -1,0 +1,29 @@
+name: Release Binary
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: Configure version
+        run: |
+          echo "Configuring to release with version ${{github.ref_name}}"
+          sed -i 's/0.0.0/${{github.ref_name}}/g' Cargo.toml
+          sed -i 's/version = "v/version = "/g' Cargo.toml
+      - name: Login to Cargo
+        run: cargo login ${{ secrets.CARGO_KEY }}
+      - name: Release Code
+        run: cargo publish --allow-dirty
