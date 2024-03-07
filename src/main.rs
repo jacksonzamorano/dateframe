@@ -96,7 +96,7 @@ fn clean_dir(path: &PathBuf, config: &Config) -> Vec<PathBuf> {
                     if !date.is_within(config) {
                         match fs::remove_dir_all(&target_path) {
                             Ok(_) => {
-                                println_info!(config, "\t\t! {} removed", &o)
+                                println_info!(config, "\t\t! {} [parsed as {}] removed", &o, &file_name);
                             }
                             Err(x) => match x.kind() {
                                 ErrorKind::PermissionDenied => println_error!(
