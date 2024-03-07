@@ -84,7 +84,7 @@ fn clean_dir(path: &PathBuf, config: &Config) -> Vec<PathBuf> {
     for o in options.into_iter() {
         let mut target_path = PathBuf::from(path);
         target_path.push(&o);
-        println!("\t{}", target_path.display());
+        println_debug!(config, "\t{}", target_path.display());
 
         let file_name = config.format_name(&o);
         println_debug!(config, "\t\tUsing name {} for {}", file_name, o);
